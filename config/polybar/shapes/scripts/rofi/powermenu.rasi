@@ -1,0 +1,134 @@
+/*
+ *
+ * Author  : Aditya Shakya
+ * Mail    : adi1090x@gmail.com
+ * Github  : @adi1090x
+ * Twitter : @adi1090x
+ *
+ */
+
+configuration {
+	font: "Fantasantasque Sans Mono 50";
+	show-icons: true;
+	icon-theme: "Kora Light Panel";
+	display-drun: "";
+	drun-display-format: "{name}";
+	disable-history: false;
+	fullscreen: false;
+	hide-scrollbar: true;
+	sidebar-mode: false;
+}
+
+@import "colors.rasi"
+
+window {
+	children: [horibox];
+	transparency: "real";
+	background-color: @bg;
+	text-color: @fg;
+	border:	5px;
+	border-color: #1F1F1F;
+	border-radius: 10px;
+	width: 450px;
+	location: center;
+	x-offset: 0;
+	y-offset: 0;
+}
+
+horibox {
+	children: [inputbar, listview];
+	background-color: @bg;
+	spacing: 0px;
+	padding: 0px;
+	border:	0px;
+	border-radius: 0px;
+	border-color: @bg;
+}
+
+prompt {
+	enabled: true;
+	padding: 10px 10px 10px 10px;
+	background-color: @bg2;
+	text-color: #FFFFFF;
+	font: "Roboto Medium 10";
+}
+
+textbox-prompt-colon {
+	padding: 10px 10px 10px 10px;
+	font: "Roboto Medium 10";
+	background-color: @bg1;
+	text-color: @fg;
+	expand: false;
+	str: "";
+}
+
+entry {
+	background-color: @bg2;
+	text-color: #FFFFFF;
+	placeholder-color: #FFFFFF;
+	expand: true;
+	horizontal-align: 0;
+	placeholder: "Search...";
+	padding: 10px;
+	border-radius: 0px 10px 10px 0px;
+	blink: true;
+}
+
+inputbar {
+	children: [ textbox-prompt-colon, prompt];
+	background-color: @bg2;
+	text-color: #FFFFFF;
+	expand: false;
+	border:	0px;
+	border-radius: 10px;
+	border-color: @ac;
+	spacing: 0px;
+}
+
+listview {
+	background-color: @bg;
+	padding: 10px 10px 10px 10px;
+	lines: 1;
+	columns: 3;
+	spacing: 5px;
+	cycle: false;
+	dynamic: false;
+	layout: vertical;
+}
+
+mainbox {
+	background-color: @bg;
+	border:	0px;
+	border-radius: 0px;
+	border-color: @bg;
+	children: [ inputbar, listview ];
+	spacing: 0px;
+	padding: 0px;
+}
+
+element {
+	background-color: transparent;
+	text-color: @fg;
+	orientation: vertical;
+	border-radius: 0px;
+	padding: 0px 0px 0px 35px;
+}
+
+element-icon {
+	border: 0px;
+	background-color: transparent;
+}
+
+element-text {
+	background-color: transparent;
+	expand: false;
+	text-color: @fg;
+}
+
+element selected {
+	background-color: #FB8C00B3;
+	text-color: @fg;
+	border:	0px 0px 0px 0px;
+	border-radius: 10px;
+	border-color: @bg3;
+}

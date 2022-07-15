@@ -1,0 +1,12 @@
+/* colors */
+
+/* This has colors in format #RRGGBBAA */
+
+* {
+  al:    #00000000;
+  bg:    #1F1F1F80;
+  bg1:   #EF6C00;
+  bg2:   #FB8C00;
+  bg3:   #FB8C0080;
+  fg:    #FFFFFF;
+}
