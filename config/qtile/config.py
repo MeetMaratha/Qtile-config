@@ -189,6 +189,7 @@ keys = [
 
     # Screenshot
     Key([], "Print", lazy.spawn("xfce4-screenshooter -r")),
+    Key([], "Print", lazy.spawn("flameshot gui")),
 
     # Rofi Menu
     Key([mod], "r", lazy.spawn(f"bash {launcher_location}"), desc="Rofi Menu")
