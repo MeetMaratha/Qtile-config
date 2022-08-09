@@ -5,60 +5,429 @@ from libqtile.lazy import lazy
 from libqtile.utils import guess_terminal
 import os
 import subprocess
+import json
 from libqtile.widget.generic_poll_text import GenPollText
 from libqtile.widget.battery import BatteryState
 from libqtile.log_utils import logger
+from qtile_extras.widget import modify  
 
 from libqtile import hook
 
+import math
+
+
+# --==[ Widget Base ]==--
+
+from libqtile import widget
+from extras import RectDecoration
+
+# This font mustn't be modified.
+icon_font = 'SauceCodePro Nerd Font'
+#icon_font = 'Roboto Medium'
+
+defaults = dict(
+  font = 'SauceCodePro Nerd Font',
+  fontsize = 10,
+  padding = None,
+)
+
+def base(bg: str, fg: str) -> dict:
+  return {
+    'background': bg,
+    'foreground': fg,
+  }
+
+def decoration(side: str = 'both') -> dict:
+  radius = {'left': [8, 0, 0, 8], 'right': [0, 8, 8, 0]}
+  return { 'decorations': [
+    RectDecoration(
+      filled = True,
+      radius = radius.get(side, 8),
+      use_widget_background = True,
+    )
+  ]}
+
+def font(fontsize: int) -> dict:
+  return {
+    'font': icon_font,
+    'fontsize': fontsize,
+  }
+
+def icon(bg: str, fg: str) -> dict:
+  return {
+    **base(bg, fg),
+    **font(15),
+  }
+
+def spacer(bg: str) -> object:
+  return widget.Spacer(background = bg)
+
+
+class TextBox(base._TextBox):
+  '''A flexible textbox that can be updated from bound keys, scripts, and qshell.'''
+
+  def __init__(
+    self,
+    text = ' ',
+    width = bar.CALCULATED,
+    offset = 0,
+    x = 0,
+    y = 0,
+    **config,
+  ):
+    base._TextBox.__init__(self, text = text, width = width, **config)
+    self.add_offset = offset
+    self.add_x = x
+    self.add_y = y
+
+  def cmd_update(self, text):
+    '''Update the text in a TextBox widget'''
+    self.update(text)
+
+  def cmd_get(self):
+    '''Retrieve the text in a TextBox widget'''
+    return self.text
+
+  def calculate_length(self):
+    if self.text:
+      if self.bar.horizontal:
+        return min(self.layout.width, self.bar.width) \
+          + self.actual_padding * 2 + self.add_offset
+      else:
+        return min(self.layout.width, self.bar.height) \
+          + self.actual_padding * 2 + self.add_offset
+    else:
+      return 0
+
+  def draw(self):
+    if not self.can_draw():
+      return
+    self.drawer.clear(self.background or self.bar.background)
+
+    # size = self.bar.height if self.bar.horizontal else self.bar.width
+    self.drawer.ctx.save()
+
+    if not self.bar.horizontal:
+      # Left bar reads bottom to top
+      if self.bar.screen.left is self.bar:
+        self.drawer.ctx.rotate(-90 * math.pi / 180.0)
+        self.drawer.ctx.translate(-self.length, 0)
+
+      # Right bar is top to bottom
+      else:
+        self.drawer.ctx.translate(self.bar.width, 0)
+        self.drawer.ctx.rotate(90 * math.pi / 180.0)
+
+    # If we're scrolling, we clip the context to the scroll width less the padding
+    # Move the text layout position (and we only see the clipped portion)
+    if self._should_scroll:
+      self.drawer.ctx.rectangle(
+        self.actual_padding,
+        0,
+        self._scroll_width - 2 * self.actual_padding,
+        self.bar.size,
+      )
+      self.drawer.ctx.clip()
+
+    size = self.bar.height if self.bar.horizontal else self.bar.width
+
+    self.layout.draw(
+      (self.actual_padding or 0) - self._scroll_offset + self.add_x,
+      int(size / 2.0 - self.layout.height / 2.0) + 1 + self.add_y,
+    )
+    self.drawer.ctx.restore()
+
+    self.drawer.draw(
+      offsetx=self.offsetx, offsety=self.offsety, width=self.width, height=self.height
+    )
+
+    # We only want to scroll if:
+    # - User has asked us to scroll and the scroll width is smaller than the layout (should_scroll=True)
+    # - We are still scrolling (is_scrolling=True)
+    # - We haven't already queued the next scroll (scroll_queued=False)
+    if self._should_scroll and self._is_scrolling and not self._scroll_queued:
+      self._scroll_queued = True
+      if self._scroll_offset == 0:
+        interval = self.scroll_delay
+      else:
+        interval = self.scroll_interval
+      self._scroll_timer = self.timeout_add(interval, self.do_scroll)
+
+
+
+
+from libqtile.widget import groupbox
+
+
+from libqtile import drawer
+
+def framed(self, border_width, border_color, pad_x, pad_y, highlight_color=None):
+  return TextFrame(
+    self, border_width, border_color, pad_x, pad_y, highlight_color=highlight_color
+  )
+
+class TextFrame(drawer.TextFrame):
+  def __init__(self, layout, border_width, border_color, pad_x, pad_y, highlight_color=None):
+    super().__init__(layout, border_width, border_color, pad_x, pad_y, highlight_color)
+
+  def draw(self, x, y, rounded=True, fill=False, line=False, highlight=False, invert=False):
+    self.drawer.set_source_rgb(self.border_color)
+    opts = [
+      x,
+      y,
+      self.layout.width + self.pad_left + self.pad_right,
+      self.layout.height + self.pad_top + self.pad_bottom,
+      self.border_width,
+    ]
+    if line:
+      if highlight:
+        self.drawer.set_source_rgb(self.highlight_color)
+        self.drawer.fillrect(*opts)
+        self.drawer.set_source_rgb(self.border_color)
+
+      opts[1] = 0 if invert else self.height - self.border_width
+      opts[3] = self.border_width
+
+      self.drawer.fillrect(*opts)
+    elif fill:
+      if rounded:
+        self.drawer.rounded_fillrect(*opts)
+      else:
+        self.drawer.fillrect(*opts)
+    else:
+      if rounded:
+        self.drawer.rounded_rectangle(*opts)
+      else:
+        self.drawer.rectangle(*opts)
+    self.drawer.ctx.stroke()
+    self.layout.draw(x + self.pad_left, y + self.pad_top)
+
+  def draw_line(self, x, y, highlighted, inverted):
+    self.draw(x, y, line=True, highlight=highlighted, invert=inverted)
+
+
+
+
+class _GroupBase(groupbox._GroupBase):
+  def __init__(self, **config):
+    super().__init__(**config)
+
+  def _configure(self, qtile, bar):
+    base._Widget._configure(self, qtile, bar)
+
+    if self.fontsize is None:
+      calc = self.bar.height - self.margin_y * 2 - self.borderwidth * 2 - self.padding_y * 2
+      self.fontsize = max(calc, 1)
+
+    self.layout = self.drawer.textlayout(
+      "", "ffffff", self.font, self.fontsize, self.fontshadow
+    )
+    self.layout.framed = framed.__get__(self.layout)
+    self.setup_hooks()
+
+  def drawbox(
+    self,
+    offset,
+    text,
+    bordercolor,
+    textcolor,
+    highlight_color=None,
+    width=None,
+    rounded=False,
+    block=False,
+    line=False,
+    highlighted=False,
+    inverted=False,
+  ):
+    self.layout.text = self.fmt.format(text)
+    self.layout.font_family = self.font
+    self.layout.font_size = self.fontsize
+    self.layout.colour = textcolor
+    if width is not None:
+      self.layout.width = width
+    if line:
+      pad_y = [
+        (self.bar.height - self.layout.height - self.borderwidth) / 2,
+        (self.bar.height - self.layout.height + self.borderwidth) / 2,
+      ]
+      if highlighted:
+        inverted = False
+    else:
+      pad_y = self.padding_y
+
+    if bordercolor is None:
+      # border colour is set to None when we don't want to draw a border at all
+      # Rather than dealing with alpha blending issues, we just set border width
+      # to 0.
+      border_width = 0
+      framecolor = self.background or self.bar.background
+    else:
+      border_width = self.borderwidth
+      framecolor = bordercolor
+
+    framed = self.layout.framed(border_width, framecolor, 0, pad_y, highlight_color)
+    y = self.margin_y
+    if self.center_aligned:
+      for t in base.MarginMixin.defaults:
+        if t[0] == "margin":
+          y += (self.bar.height - framed.height) / 2 - t[1]
+          break
+    if block and bordercolor is not None:
+      framed.draw_fill(offset, y, rounded)
+    elif line:
+      framed.draw_line(offset, y, highlighted, inverted)
+    else:
+      framed.draw(offset, y, rounded)
+
+class GroupBox(_GroupBase, groupbox.GroupBox):
+  defaults = [
+    ("invert", False, "Invert line position when 'line' highlight method isn't highlighted."),
+    ("rainbow", False, "If set to True, 'colors' will be used instead of '*_screen_border'."),
+    (
+      "colors",
+      False,
+      "Receive a list of strings."
+      "Allows each tag to be an independent/unique color when selected, this overrides 'active'."
+    ),
+  ]
+
+  def __init__(self, **config):
+    super().__init__(**config)
+    self.add_defaults(GroupBox.defaults)
+
+  def draw(self):
+    self.drawer.clear(self.background or self.bar.background)
+
+    def color(index: int) -> str:
+      try:
+        return self.colors[index]
+      except IndexError:
+        return "FFFFFF"
+
+    offset = self.margin_x
+    for i, g in enumerate(self.groups):
+      to_highlight = False
+      is_block = self.highlight_method == "block"
+      is_line = self.highlight_method == "line"
+
+      bw = self.box_width([g])
+
+      if self.group_has_urgent(g) and self.urgent_alert_method == "text":
+        text_color = self.urgent_text
+      elif g.windows:
+        text_color = color(i) if self.colors else self.active
+      else:
+        text_color = self.inactive
+
+      if g.screen:
+        if self.highlight_method == "text":
+          border = None
+          text_color = self.this_current_screen_border
+        else:
+          if self.block_highlight_text_color:
+            text_color = self.block_highlight_text_color
+
+          if self.bar.screen.group.name == g.name:
+            if self.qtile.current_screen == self.bar.screen:
+              if self.rainbow and self.colors:
+                border = color(i) if g.windows else self.inactive
+              else:
+                border = self.this_current_screen_border
+              to_highlight = True
+            else:
+              if self.rainbow and self.colors:
+                border = color(i) if g.windows else self.inactive
+              else:
+                border = self.this_screen_border
+              to_highlight = True
+
+          else:
+            if self.qtile.current_screen == g.screen:
+              if self.rainbow and self.colors:
+                border = color(i) if g.windows else self.inactive
+              else:
+                border = self.other_current_screen_border
+            else:
+              if self.rainbow and self.colors:
+                border = color(i) if g.windows else self.inactive
+              else:
+                border = self.other_screen_border
+
+      elif self.group_has_urgent(g) and self.urgent_alert_method in (
+        "border",
+        "block",
+        "line",
+      ):
+        border = self.urgent_border
+        if self.urgent_alert_method == "block":
+          is_block = True
+        elif self.urgent_alert_method == "line":
+          is_line = True
+      else:
+        border = None
+
+      self.drawbox(
+        offset,
+        g.label,
+        border,
+        text_color,
+        highlight_color=self.highlight_color,
+        width=bw,
+        rounded=self.rounded,
+        block=is_block,
+        line=is_line,
+        highlighted=to_highlight,
+        inverted=self.invert,
+      )
+      offset += bw + self.spacing
+    self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.width)
+
+
+
 # Colors
 
-colors = {
-    "bg" : "#1f1d2e",
-    "fg" : "#e0def4",
-    "fg_gutter" : "#ff0000",
-    "active" : "#c77dff",
-    "focused" : "#ade8f4",
-    "other_screen_focused" : "#0077b6",
-    "inactive" : "#6c757d",
-    'low_bg' : "#212529",
-    'low_fg' : "#e5383b",
-    "border_focus" : "#c77dff",
-    "border_normal" : "#6c757d"
-}
+FILE: str = 'catppuccin'
+PATH = f'/home/meet/.config/qtile/utils/colors/{FILE}.json'
+
+with open(PATH) as file:
+  color = json.load(file)
+  file.close()
+
+# colors = {
+#     "bg" : "#1f1d2e",
+#     "fg" : "#e0def4",
+#     "fg_gutter" : "#ff0000",
+#     "active" : "#c77dff",
+#     "focused" : "#ade8f4",
+#     "other_screen_focused" : "#0077b6",
+#     "inactive" : "#6c757d",
+#     'low_bg' : "#212529",
+#     'low_fg' : "#e5383b",
+#     "border_focus" : "#c77dff",
+#     "border_normal" : "#6c757d"
+# }
 
 # Custome Widgets
 
 # Backlight
-class MyBacklight:
-    def __init__(self) -> None:
-        self.path_bright = os.path.join('/', 'sys', 'class', 'backlight', 'amdgpu_bl0', 'brightness')
-        self.path_max = os.path.join('/', 'sys', 'class', 'backlight', 'amdgpu_bl0', 'max_brightness')
-        self.icons = [
-            "", # Low
-            "", # < 50
-            "", # < 75
-            "" # Full
-        ]
+class Command(object):
+    """Run a command and capture it's output string, error string and exit status"""
 
-    def _update(self):
-        with open(self.path_bright, "r") as f:
-            self.curr = int(f.read().split("\n")[0])
-        with open(self.path_max, "r") as f:
-            self.max = int(f.read().split("\n")[0])
+    def __init__(self, command):
+        self.command = command 
 
-    def draw(self):
-        self._update()
-        percent = self.curr / self.max
-        if percent <= 0.25 : char = self.icons[0]
-        elif percent <= 0.50 : char = self.icons[1]
-        elif percent <= 0.75 : char = self.icons[2]
-        else : char = self.icons[3]
-        char += f" {int(percent*100)}%"
-        result = subprocess.check_output(["echo", char])
-        return result.decode("utf-8").replace('\n', '')
+    def run(self, shell=True):
+        import subprocess as sp
+        process = sp.Popen(self.command, shell = shell, stdout = sp.PIPE, stderr = sp.PIPE)
+        self.pid = process.pid
+        self.output, self.error = process.communicate()
+        self.failed = process.returncode
+        return self
 
-# Battery
+    @property
+    def returncode(self):
+        return self.failed
+
 class MyBattery:
     def __init__(self) -> None:
         self.path_now = os.path.join('/', 'sys', 'class', 'power_supply', 'BAT0', 'energy_now')
@@ -73,13 +442,18 @@ class MyBattery:
             "", # <60
             "", # <70
             "", # <80
-	    "", # <90
+	          "", # <90
             "" # Full
         ]
 
         self.icons_charging = [
-	    "", # If charging
-            "" # Full
+	          "", # < 20
+            "", # < 30
+            "", # < 40
+            "", # < 60
+            "", # < 80
+            "", # < 90
+            "" # Full
         ]
 
     def _update(self):
@@ -108,51 +482,62 @@ class MyBattery:
         else : self.char = self.icons_discharging[9]     
 
     def _charging(self):
-        if self.percentage < 1.0 : self.char = self.icons_charging[0]
-        else : self.char = self.icons_charging[1]
+        if self.percentage <= 0.2 : self.char = self.icons_charging[0]
+        elif self.percentage <= 0.3 : self.char = self.icons_charging[1]
+        elif self.percentage <= 0.4 : self.char = self.icons_charging[2]
+        elif self.percentage <= 0.6 : self.char = self.icons_charging[3]
+        elif self.percentage <= 0.8 : self.char = self.icons_charging[4]
+        elif self.percentage <= 0.9 : self.char = self.icons_charging[5]
+        elif self.percentage <= 1.0 : self.char = self.icons_charging[6]
 
     def draw(self):
         self._update()
         self._chageIcon()
-        self.char += f"{int(self.percentage*100)}%"
+        self.char += f" {int(self.percentage*100)}%  "
         result = subprocess.check_output(["echo", self.char])
         return result.decode("utf-8").replace('\n', '')
 
-class MyVolume:
-    def __init__(self):
-        self.icons = [
-            "\ufc5d", # Mute
-            "\uf028" # Not mute
-        ]
-        self.icon = None
-        self.cmd = 'pamixer --get-volume-human'
-    
-    def _getVolume(self):
-        temp = subprocess.Popen([self.cmd], stdout=subprocess.PIPE, shell=True)
-        out, _ = temp.communicate()
-        self.volume = out.decode("utf-8").replace('\n', '')
-    
-    def _getIcon(self):
-        if self.volume == "muted" : self.icon = self.icons[0]
-        else : self.icon = self.icons[1]
-    
-    def draw(self):
-        self._getVolume()
-        self._getIcon()
-        self.char = self.icon + f" {self.volume}" if self.volume != "muted" else self.icon
-        result = subprocess.check_output(["echo", self.char]) 
-        return result.decode("utf-8").replace('\n', '')
+class MyBluetooth():
+  def __init__(self) -> None:
+    self.check_power = 'bluetoothctl show | grep "Powered: yes" | wc -l'
+    self.check_connection = 'bluetoothctl info | grep "Connected: yes" | wc -l'
+    self.power_command = None
+  
+  def _check_status(self) -> None:
+    self.power = int(Command(self.check_power).run().output)
+    if self.power == 1:
+      self.connected = int(Command(self.check_connection).run().output)
+      if self.connected == 1:
+        self.icon = ''
+      else:
+        self.icon = ''
+    else:
+      self.icon = ''
 
-# Initalizing those widgets function
-backlight = MyBacklight()
-#battery = MyBattery()
-volume = MyVolume()
+  def update(self) -> str:
+    self._check_status()
+    result = subprocess.check_output(["echo", self.icon])
+    return result.decode("utf-8").replace('\n', '')
+  
+  def _changePower(self) -> None:
+    if self.power == 1 : cmd = 'bluetoothctl power off'
+    else : cmd = 'bluetoothctl power on'
+    subprocess.run(cmd, shell=True)
+  
+  def _connect(self) -> None:
+    if self.power == 1:
+      if self.connected == 1 : cmd = 'bluetoothctl disconnect 34:28:40:05:86:D9'
+      else : cmd = 'bluetoothctl connect 34:28:40:05:86:D9'
+      subprocess.run(cmd, shell = True)
+
+battery = MyBattery()
+bluetooth = MyBluetooth()
 
 # Some constant values
 mod = "mod4"
 terminal = guess_terminal()
 home = os.path.expanduser('~')
-launcher_location = "/home/meet/.config/qtile/scripts/launcher.sh"
+launcher_location = "/home/meet/.config/rofi/launcher.sh"
 
 
 keys = [
@@ -215,13 +600,13 @@ keys = [
 ]
 
 workspaces = [
-    {"name": " ", "key": "1", "matches": [Match(wm_class = 'Alacritty')]},
-    {"name": "", "key": "2", "matches": [Match(wm_class = 'firefox')]},
-    {"name": "", "key": "3", "matches": [Match(wm_class = 'pcmanfm')]},
-    {"name": "", "key": "4", "matches": [Match(wm_class = 'Steam')]},
-    {"name": "", "key": "5", "matches": [Match(wm_class = 'vlc'), Match(wm_class = 'Audacious')]},
-    {"name": " ", "key": "6", "matches": [Match(wm_class = 'code')]},
-    {"name": " ", "key": "7", "matches": []},
+    {"name": "", "key": "1", "matches": [Match(wm_class = 'Alacritty')]},
+    {"name": "", "key": "2", "matches": [Match(wm_class = 'firefox')]},
+    {"name": "", "key": "3", "matches": [Match(wm_class = 'pcmanfm')]},
+    {"name": "", "key": "4", "matches": [Match(wm_class = 'Steam')]},
+    {"name": "", "key": "5", "matches": [Match(wm_class = 'vlc'), Match(wm_class = 'Audacious')]},
+    {"name": "", "key": "6", "matches": [Match(wm_class = 'code')]},
+    {"name": "", "key": "7", "matches": []},
 ]
 
 groups = []
@@ -231,13 +616,24 @@ for workspace in workspaces:
     keys.append(Key([mod], workspace["key"], lazy.group[workspace["name"]].toscreen()))
     keys.append(Key([mod, "shift"], workspace["key"], lazy.window.togroup(workspace["name"])))
 
+config_layout = {
+  'single_border_width': 0,
+  'border_width': 0,
+  'single_margin': 10,
+  'margin': 10,
+  'border_normal': color[17],
+  'border_focus': color[5],
+}
+
 layouts = [
-    layout.Columns(
-        border_focus = colors["border_focus"], 
-        border_width=3,
-        border_normal = colors["border_normal"],
-        margin = 3),        
-    layout.Max(),
+    layout.MonadTall(
+        **config_layout,
+        min_ratio = 0.30,
+        max_ratio = 0.70,
+        change_ratio = 0.02,
+    ),
+
+    layout.Max(**config_layout),
     # Try more layouts by unleashing below layouts.
     # layout.Stack(num_stacks=2),
     # layout.Bsp(),
@@ -251,103 +647,226 @@ layouts = [
     # layout.Zoomy(),
 ]
 
+floating_layout = layout.Floating(
+  fullscreen_border_width = 0,
+  border_width = 0,
+  border_normal = color[17],
+  border_focus = color[7],
+
+  float_rules = [
+    *layout.Floating.default_float_rules,
+    Match(wm_class = [
+      'confirmreset',
+      'gnome-screenshot',
+      'lxappearance',
+      'makebranch',
+      'maketag',
+      'ssh-askpass',
+      'thunar',
+      'Xephyr',
+      'xfce4-about',
+    ]), # type: ignore
+
+    Match(title = [
+      'branchdialog',
+      'File Operation Progress',
+      'minecraft-launcher',
+      'Open File',
+      'pinentry',
+    ]), # type: ignore
+  ],
+)
+
+# Widgets
+
+
+
+
+def sep(fg: str, offset = 0, padding = 8) -> TextBox:
+  return TextBox(
+    **icon(None, fg),
+    offset = offset,
+    padding = padding,
+    text = '',
+  )
+
+def powerline(bg: str, color: str) -> TextBox:
+  return TextBox(
+    **base(bg, color),
+    **font(31),
+    offset = -1,
+    padding = -4,
+    text = '',
+    y = -1,
+  )
+
+def logo(bg: str, fg: str) -> TextBox:
+  return modify(
+    TextBox,
+    **decoration(),
+    **icon(bg, fg),
+    mouse_callbacks = { 'Button1': lazy.restart() },
+    # mouse_callbacks = { 'Button1': lambda: qtile.cmd_spawn(f"bash {launcher_location}") },
+    offset = 4,
+    padding = 17,
+    text = '',
+  )
+
+def groups(bg: str) -> GroupBox:
+  return GroupBox(
+    **font(15),
+    background = bg,
+    borderwidth = 1,
+    colors = [
+      color[6], color[5], color[3],
+      color[1], color[4], color[2],
+    ],
+    highlight_color = color[16],
+    highlight_method = 'line',
+    inactive = color[8],
+    invert = True,
+    padding = 7,
+    rainbow = True,
+  )
+
+def volume(bg: str, fg: str) -> list:
+  return [
+    modify(
+      TextBox,
+      **decoration('left'),
+      **icon(bg, fg),
+      text = '',
+      x = 4,
+    ),
+    widget.PulseVolume(
+      **base(bg, fg),
+      **decoration('right'),
+      update_interval = 0.1,
+      mouse_callbacks = {
+	      'Button1' : lambda : qtile.cmd_spawn("pavucontrol")
+	      }
+    ),
+  ]
+
+def window_name(bg: str, fg: str) -> object:
+  return widget.WindowName(
+    **base(bg, fg),
+    format = '{name}',
+    max_chars = 60,
+    width = bar.CALCULATED,
+  )
+
+def wifi(bg: str, fg: str) -> list:
+  return [
+    widget.WiFiIcon(
+    **base(bg, fg),
+    **decoration('left'),
+    interface = 'wlp1s0',
+    padding_y = 4,
+    padding_x = 8,
+    mouse_callbacks = {
+	    'Button1' : lambda : qtile.cmd_spawn('nm-connection-editor')
+    }
+  )]
+
+def blue(bg: str, fg: str) -> list:
+  return [
+    TextBox(
+      **icon(bg, fg),
+      offset = -2,
+      # text = '',
+      text = '',
+      x = -6,
+    ),
+    widget.GenPollText(
+      **base(bg , fg),
+      func = bluetooth.update,
+      update_interval = 0.2,
+      fontsize = 14,
+      mouse_callbacks = {
+        'Button1' : lazy.spawn('blueberry'),
+        'Button2' : bluetooth._changePower,
+        'Button3' : bluetooth._connect
+      }
+    ),
+  ]
+
+def batt(bg: str, fg: str) -> list:
+  return [
+    TextBox(
+      **icon(bg, fg),
+      offset = -2,
+      # text = '',
+      text = '',
+      x = -6,
+    ),
+    widget.GenPollText(
+      **base(bg , fg),
+      **decoration('right'),
+      func = battery.draw,
+      update_interval = 0.2,
+    ),
+  ]
+
+# def tray(bg: str, fg: str) -> list:
+#   return [
+    
+#   ]
+
+def clock(bg: str, fg: str) -> list:
+  return [
+    modify(
+      TextBox,
+      **decoration('left'),
+      **icon(bg, fg),
+      offset = 2,
+      text = '',
+      x = 4,
+    ),
+
+    widget.Clock(
+      **base(bg, fg),
+      **decoration('right'),
+      format = '%A - %I:%M %p ',
+      padding = 6,
+    ),
+  ]
+
+
 
 screens = [
     Screen(
         top=bar.Bar(
             [
-                widget.Spacer(
-                    length = 3,
-                    background = colors["bg"]),
-                widget.Image(
-                    background = colors["bg"],
-                    filename = "~/.icons/kora-light-panel/apps/scalable/archlinux.svg",
-                    margin_y = 3,
-                    mouse_callbacks = {'Button1': lambda: qtile.cmd_spawn(f"bash {launcher_location}")}
-                ),
-                widget.Spacer(
-                    length = 5,
-                    background = colors["bg"]),
-                # widget.CurrentLayout(),
-                widget.GroupBox(
-                    background = colors["bg"],
-                    active = colors["active"],
-                    inactive = colors["inactive"],
-                    padding_x = 5,
-                    margin_y = 3,
-                    font = 'FontAwesome',
-                    fontsize = 16,
-                    highlight_method = 'text',
-                    spacing = -5,
-                ),
-                widget.Sep(
-                    linewidth = 350,
-                    padding = 5,
-                    foreground = colors["bg"],
-                    background = colors["bg"]
-                ),
-                widget.WindowName(
-                    background = colors["bg"],
-                    font = 'Roboto Medium',
-                    empty_group_string = ' ',
-                    foreground = colors["fg"],
-                    format = '{name}',
-                    max_chars = 50
-                ),
-                widget.Systray(
-                    background = colors["bg"],
-                ),
-                widget.GenPollText(
-                    func = volume.draw,
-                    update_interval = 0.2,
-                    background = colors["bg"],
-                    foreground = colors["fg"],
-                    font = 'RobotoMono',
-                    fontsize = 14,
-		    mouse_callbacks = {
-			'Button1' : lambda : qtile.cmd_spawn("pavucontrol")	
-		    }
-                ),
-                widget.GenPollText(
-                    func = backlight.draw,
-                    update_interval = 0.2,
-                    background = colors["bg"],
-                    foreground = colors["fg"],
-                    font = 'RobotoMono',
-                    fontsize = 14
-                ),
- #               widget.GenPollText(
- #                   func = battery.draw,
- #                   update_interval = 2,
- #                   background = colors["bg"],
- #                   foreground = colors["fg"],
- #                   font = 'RobotoMono',
- #                   fontsize = 14
- #               ),
-                widget.Clock(
-                    format = "%H:%M %p",
-                    background = colors["bg"],
-                    font = "Roboto Condensed",
-                    foreground = colors["fg"]),
-                widget.Image(
-                    background = colors["bg"],
-                    filename = "/home/meet/.icons/Tela-blue/24/panel/system-devices-information.svg",
-                    mouse_callbacks = {
-                        'Button1': lambda: qtile.cmd_spawn("bash /home/meet/.config/qtile/scripts/powermenu.sh")
-                    }
-                ),
-                widget.CurrentLayoutIcon(
-                    background = colors["bg"],
-                    font = 'Roboto Medium',
-                    foreground = colors["fg"],
-                    mouse_callbacks = {
-                        'Button1' : lazy.next_layout() # Switch to next next layout on left click
-                    },
-                    scale = 0.65
-                )
+                widget.Spacer(length = 4),
+                logo(color[4], color[16]),
+                sep(color[8], offset = -8),
+                groups(None),
+                sep(color[8], offset = 4, padding = 4),
+                *volume(color[5], color[16]),
+                #  powerline(color[5], color[1]),
+                #  *updates(color[1], color[16]),
+
+                widget.Spacer(),
+                window_name(None, color[17]),
+                widget.Spacer(),
+
+                *wifi(color[2], color[16]),
+                powerline(color[2], color[3]),
+                *blue(color[3], color[16]),
+                powerline(color[3], color[6]),
+                *batt(color[6], color[16]),
+                # *tray(color[6], color[16]),
+                sep(color[8]),
+                *clock(color[5], color[16]),
+                widget.Spacer(length = 4),
             ],
-            24,
+            size = 18,
             opacity = 0.7,
+            background = color[16],
+            border_color = color[16],
+            border_width = 4,
+            margin = [10, 10, 10, 10],
         ),
     ),
 ]
