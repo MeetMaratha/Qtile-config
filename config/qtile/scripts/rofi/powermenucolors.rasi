@@ -1,0 +1,21 @@
+/* colors */
+
+/* This has colors in format #RRGGBBAA */
+
+* {
+  bg:            #1A1B2673;
+  bg-selected:   #282E4973;
+  fg-textbox:    #E06C75;
+  fg-list:       #ABB2BF;
+}
+
+/*
+Another theme
+
+* {
+  bg:            #1F1D2E73;
+  bg-selected:   #C77DFF31;
+  fg:            #E0DEF4;
+}
+
+*/

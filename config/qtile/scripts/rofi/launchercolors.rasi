@@ -1,0 +1,5 @@
+* {
+  bg:            #1F1D2E73;
+  bg-selected:   #C77DFF31;
+  fg:            #E0DEF4;
+}

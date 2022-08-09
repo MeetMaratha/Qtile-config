@@ -38,9 +38,11 @@ case $chosen in
 		shutdown now
         ;;
     $reboot)
-		systemctl reboot
+		reboot
         ;;
     $lock)
-		dm-tool lock
+		dm-tool switch-to-greeter
+		sleep 5
+		suspend
         ;;
 esac

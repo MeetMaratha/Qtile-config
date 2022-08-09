@@ -1,12 +1,13 @@
+
 from libqtile import bar, layout, widget, qtile
 from libqtile.config import Click, Drag, Group, Key, Match, Screen
 from libqtile.lazy import lazy
 from libqtile.utils import guess_terminal
 import os
+import subprocess
 from libqtile.widget.generic_poll_text import GenPollText
 from libqtile.widget.battery import BatteryState
 from libqtile.log_utils import logger
-import subprocess
 
 from libqtile import hook
 
@@ -53,7 +54,7 @@ class MyBacklight:
         elif percent <= 0.50 : char = self.icons[1]
         elif percent <= 0.75 : char = self.icons[2]
         else : char = self.icons[3]
-        char += f"  {int(percent*100)}%"
+        char += f" {int(percent*100)}%"
         result = subprocess.check_output(["echo", char])
         return result.decode("utf-8").replace('\n', '')
 
@@ -72,18 +73,13 @@ class MyBattery:
             "", # <60
             "", # <70
             "", # <80
-            "", # <90
+	    "", # <90
             "" # Full
         ]
 
         self.icons_charging = [
-            "", # < 20
-            "", # < 30
-            "", # <40
-            "", # <60
-            "", # <80
-            "", # <90
-            "" # Full
+	    "", # If charging
+            "" # Full
         ]
 
     def _update(self):
@@ -96,40 +92,61 @@ class MyBattery:
         self.percentage = self.curr / self.max
         
     def _chageIcon(self):
-        if self.status == 'Charging' : self._charging()
+        if self.status == 'Charging' or self.status == 'Unknown' : self._charging()
         else : self._discharging() 
 
     def _discharging(self):
         if self.percentage <= 0.1 : self.char = self.icons_discharging[0]        
-        if self.percentage <= 0.2 : self.char = self.icons_discharging[1]        
-        if self.percentage <= 0.3 : self.char = self.icons_discharging[2]        
-        if self.percentage <= 0.4 : self.char = self.icons_discharging[3]        
-        if self.percentage <= 0.5 : self.char = self.icons_discharging[4]        
-        if self.percentage <= 0.6 : self.char = self.icons_discharging[5]        
-        if self.percentage <= 0.7 : self.char = self.icons_discharging[6]        
-        if self.percentage <= 0.8 : self.char = self.icons_discharging[7]        
-        if self.percentage <= 0.9 : self.char = self.icons_discharging[8]        
+        elif self.percentage <= 0.2 : self.char = self.icons_discharging[1]        
+        elif self.percentage <= 0.3 : self.char = self.icons_discharging[2]        
+        elif self.percentage <= 0.4 : self.char = self.icons_discharging[3]        
+        elif self.percentage <= 0.5 : self.char = self.icons_discharging[4]        
+        elif self.percentage <= 0.6 : self.char = self.icons_discharging[5]        
+        elif self.percentage <= 0.7 : self.char = self.icons_discharging[6]        
+        elif self.percentage <= 0.8 : self.char = self.icons_discharging[7]        
+        elif self.percentage <= 0.9 : self.char = self.icons_discharging[8]        
         else : self.char = self.icons_discharging[9]     
 
     def _charging(self):
-        if self.percentage <= 0.2 : self.char = self.icons_charging[0]        
-        if self.percentage <= 0.3 : self.char = self.icons_charging[1]        
-        if self.percentage <= 0.4 : self.char = self.icons_charging[2]        
-        if self.percentage <= 0.6 : self.char = self.icons_charging[3]        
-        if self.percentage <= 0.8 : self.char = self.icons_charging[4]        
-        if self.percentage <= 0.9 : self.char = self.icons_charging[5]        
-        else : self.char = self.icons_charging[6]   
-    
+        if self.percentage < 1.0 : self.char = self.icons_charging[0]
+        else : self.char = self.icons_charging[1]
+
     def draw(self):
         self._update()
         self._chageIcon()
-        self.char += f"  {int(self.percentage*100)}%"
+        self.char += f"{int(self.percentage*100)}%"
         result = subprocess.check_output(["echo", self.char])
+        return result.decode("utf-8").replace('\n', '')
+
+class MyVolume:
+    def __init__(self):
+        self.icons = [
+            "\ufc5d", # Mute
+            "\uf028" # Not mute
+        ]
+        self.icon = None
+        self.cmd = 'pamixer --get-volume-human'
+    
+    def _getVolume(self):
+        temp = subprocess.Popen([self.cmd], stdout=subprocess.PIPE, shell=True)
+        out, _ = temp.communicate()
+        self.volume = out.decode("utf-8").replace('\n', '')
+    
+    def _getIcon(self):
+        if self.volume == "muted" : self.icon = self.icons[0]
+        else : self.icon = self.icons[1]
+    
+    def draw(self):
+        self._getVolume()
+        self._getIcon()
+        self.char = self.icon + f" {self.volume}" if self.volume != "muted" else self.icon
+        result = subprocess.check_output(["echo", self.char]) 
         return result.decode("utf-8").replace('\n', '')
 
 # Initalizing those widgets function
 backlight = MyBacklight()
-battery = MyBattery()
+#battery = MyBattery()
+volume = MyVolume()
 
 # Some constant values
 mod = "mod4"
@@ -184,40 +201,28 @@ keys = [
     Key([], "XF86AudioLowerVolume", lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ -2%")),
     Key([], "XF86AudioRaiseVolume", lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ +2%")),
 
-    # Key([], "F11", lazy.spawn(home + "/.local/bin/brightnesscontrol down")),
-    # Key([], "F12", lazy.spawn(home + "/.local/bin/brightnesscontrol up")),
+    Key([], "XF86MonBrightnessUp", lazy.spawn("brightnessctl set +10%")),
+    Key([], "XF86MonBrightnessDown", lazy.spawn("brightnessctl set 10%-")),
 
     # Screenshot
     Key([], "Print", lazy.spawn("xfce4-screenshooter -r")),
     Key([], "Print", lazy.spawn("flameshot gui")),
 
     # Rofi Menu
-    Key([mod], "r", lazy.spawn(f"bash {launcher_location}"), desc="Rofi Menu")
-]
+    Key([mod], "r", lazy.spawn(f"bash {launcher_location}"), desc="Rofi Menu"),
+    # Key([], "XF86TouckpadOn", lazy.spawn("pcmanfm"))
 
-# group_icons = [
-#     "", # Terminal
-#     "", # Browshttps://fontawesome.com/icons/window?s=solider
-#     "", # Folder,
-#     "", # Game
-#     "", # Video
-#     "" # Random
-# ]
+]
 
 workspaces = [
-    {"name": "", "key": "1", "matches": [Match(wm_class = terminal)]},
+    {"name": " ", "key": "1", "matches": [Match(wm_class = 'Alacritty')]},
     {"name": "", "key": "2", "matches": [Match(wm_class = 'firefox')]},
-    {"name": "", "key": "3", "matches": [Match(wm_class = 'Thunar')]},
-    {"name": "", "key": "4", "matches": [Match(wm_class = 'steam')]},
+    {"name": "", "key": "3", "matches": [Match(wm_class = 'pcmanfm')]},
+    {"name": "", "key": "4", "matches": [Match(wm_class = 'Steam')]},
     {"name": "", "key": "5", "matches": [Match(wm_class = 'vlc'), Match(wm_class = 'Audacious')]},
-    {"name": "", "key": "6", "matches": [Match(wm_class = 'codeR')]},
-    {"name": "", "key": "7", "matches": []},
+    {"name": " ", "key": "6", "matches": [Match(wm_class = 'code')]},
+    {"name": " ", "key": "7", "matches": []},
 ]
-
-# groups = [Group(i) for i in "123456789"]
-
-
-
 
 groups = []
 for workspace in workspaces:
@@ -225,30 +230,6 @@ for workspace in workspaces:
     groups.append(Group(workspace["name"], matches=matches, layout="monadtall"))
     keys.append(Key([mod], workspace["key"], lazy.group[workspace["name"]].toscreen()))
     keys.append(Key([mod, "shift"], workspace["key"], lazy.window.togroup(workspace["name"])))
-
-# for i in groups:
-#     keys.extend(
-#         [
-#             # mod1 + letter of group = switch to group
-#             Key(
-#                 [mod],
-#                 i.name,
-#                 lazy.group[i.name].toscreen(),
-#                 desc="Switch to group {}".format(i.name),
-#             ),
-#             # mod1 + shift + letter of group = switch to & move focused window to group
-#             Key(
-#                 [mod, "shift"],
-#                 i.name,
-#                 lazy.window.togroup(i.name, switch_group=True),
-#                 desc="Switch to & move focused window to group {}".format(i.name),
-#             ),
-#             # Or, use below if you prefer not to switch to that group.
-#             # # mod1 + shift + letter of group = move focused window to group
-#             # Key([mod, "shift"], i.name, lazy.window.togroup(i.name),
-#             #     desc="move focused window to group {}".format(i.name)),
-#         ]
-#     )
 
 layouts = [
     layout.Columns(
@@ -270,16 +251,6 @@ layouts = [
     # layout.Zoomy(),
 ]
 
-widget_defaults = dict(
-    font="FontAwesome",
-    fontsize=12,
-    padding=3,
-)
-extension_defaults = widget_defaults.copy()
-
-icon_defaults = dict(
-    
-)
 
 screens = [
     Screen(
@@ -326,34 +297,33 @@ screens = [
                 widget.Systray(
                     background = colors["bg"],
                 ),
-                widget.Volume(
+                widget.GenPollText(
+                    func = volume.draw,
+                    update_interval = 0.2,
                     background = colors["bg"],
                     foreground = colors["fg"],
-                    emoji = False,
-                    font = 'Roboto Condensed',
-                    fontsize = 10,
-                    fmt = "{}",
-                    theme_path = '/home/meet/.icons/Tela-blue/24/panel/',
-                    update_interval = 0.2,
-                    mouse_callbacks = {
-                        'Button1': lambda: qtile.cmd_spawn("pavucontrol"),
-                        'Button3': lambda: qtile.cmd_spawn("pactl set-sink-mute @DEFAULT_SINK@ toggle")
-                    }
+                    font = 'RobotoMono',
+                    fontsize = 14,
+		    mouse_callbacks = {
+			'Button1' : lambda : qtile.cmd_spawn("pavucontrol")	
+		    }
                 ),
                 widget.GenPollText(
                     func = backlight.draw,
                     update_interval = 0.2,
                     background = colors["bg"],
                     foreground = colors["fg"],
-                    font = "Roboto Condensed"
+                    font = 'RobotoMono',
+                    fontsize = 14
                 ),
-                widget.GenPollText(
-                    func = battery.draw,
-                    update_interval = 2,
-                    background = colors["bg"],
-                    foreground = colors["fg"],
-                    font = "Roboto Condensed"
-                ),
+ #               widget.GenPollText(
+ #                   func = battery.draw,
+ #                   update_interval = 2,
+ #                   background = colors["bg"],
+ #                   foreground = colors["fg"],
+ #                   font = 'RobotoMono',
+ #                   fontsize = 14
+ #               ),
                 widget.Clock(
                     format = "%H:%M %p",
                     background = colors["bg"],
@@ -377,7 +347,7 @@ screens = [
                 )
             ],
             24,
-            opacity = 0.7
+            opacity = 0.7,
         ),
     ),
 ]
@@ -408,14 +378,14 @@ floating_layout = layout.Floating(
         # Custom
         Match(wm_class = "Blueberry"), # Bluetooth
         Match(wm_class = "Nitrogen"), # Wallpaper manager
-        Match(wm_class = "Steam"), # Steam
+#        Match(wm_class = "Steam"), # Steam
         Match(wm_class = "task manager"), # Task Manager
         Match(wm_class = "Nm-connection-editor"), # Network editor
         Match(wm_class = "Pavucontrol"), # Volume Manager
         Match(wm_class = "Audacious"), # Music Player
         Match(wm_class = "Transmission-gtk"), # Torrent downloader
-        Match(wm_class = "Lxappearance"), # Theme customizer
-        Match(wm_class = "TelegramDesktop") # Telegram Messenger
+        Match(wm_class = "Lxappearance") # Theme customizer
+        # Match(wm_class = "TelegramDesktop") # Telegram Messenger
     ]
 )
 auto_fullscreen = True
