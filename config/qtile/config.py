@@ -1,40 +1,232 @@
+# Copyright (c) 2010 Aldo Cortesi
+# Copyright (c) 2010, 2014 dequis
+# Copyright (c) 2012 Randall Ma
+# Copyright (c) 2012-2014 Tycho Andersen
+# Copyright (c) 2012 Craig Barnes
+# Copyright (c) 2013 horsik
+# Copyright (c) 2013 Tao Sauvage
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-from libqtile import bar, layout, widget, qtile
+from libqtile import bar, layout, hook, drawer, qtile
 from libqtile.config import Click, Drag, Group, Key, Match, Screen
 from libqtile.lazy import lazy
 from libqtile.utils import guess_terminal
-import os
-import subprocess
-import json
-from libqtile.widget.generic_poll_text import GenPollText
-from libqtile.widget.battery import BatteryState
-from libqtile.log_utils import logger
-from qtile_extras.widget import modify  
-
-from libqtile import hook
-
-import math
-
-
-# --==[ Widget Base ]==--
-
-from libqtile import widget
-from extras import RectDecoration
-
-# This font mustn't be modified.
-icon_font = 'SauceCodePro Nerd Font'
-#icon_font = 'Roboto Medium'
-
-defaults = dict(
-  font = 'SauceCodePro Nerd Font',
-  fontsize = 10,
-  padding = None,
+import os, subprocess, math
+from qtile_extras import widget  # type: ignore
+from qtile_extras.widget import modify  # type: ignore
+from qtile_extras.widget.decorations import (         # type: ignore
+  BorderDecoration, RectDecoration
 )
+from libqtile.widget import base as basewidget
+from libqtile.widget import groupbox
+
+# from extras import GroupBox, widget
+
+mod, alt = "mod4", "mod1"
+terminal = guess_terminal()
+
+# Colors
+color = [
+  "#45475A",
+  "#F38BA8",
+  "#A6E3A1",
+  "#F9E2AF",
+  "#89B4FA",
+  "#F5C2E7",
+  "#94E2D5",
+  "#BAC2DE",
+
+  "#585B70",
+  "#F38BA8",
+  "#A6E3A1",
+  "#F9E2AF",
+  "#89B4FA",
+  "#F5C2E7",
+  "#94E2D5",
+  "#A6ADC8",
+
+  "#1E1E2E",
+  "#CDD6F4"
+]
+
+keys = [
+    # A list of available commands that can be bound to keys can be found
+    # at https://docs.qtile.org/en/latest/manual/config/lazy.html
+    # Switch between windows
+    Key([mod], "h", lazy.layout.left(), desc="Move focus to left"),
+    Key([mod], "l", lazy.layout.right(), desc="Move focus to right"),
+    Key([mod], "j", lazy.layout.down(), desc="Move focus down"),
+    Key([mod], "k", lazy.layout.up(), desc="Move focus up"),
+    Key([mod], "space", lazy.window.toggle_floating(), desc="Make Window floating"),
+    Key([mod], 'c', lazy.window.center(), desc="Make window center"),
+    # Move windows between left/right columns or move up/down in current stack.
+    # Moving out of range in Columns layout will create new column.
+    Key([mod, "shift"], "h", lazy.layout.shuffle_left(), desc="Move window to the left"),
+    Key([mod, "shift"], "l", lazy.layout.shuffle_right(), desc="Move window to the right"),
+    Key([mod, "shift"], "j", lazy.layout.shuffle_down(), desc="Move window down"),
+    Key([mod, "shift"], "k", lazy.layout.shuffle_up(), desc="Move window up"),
+    # Grow windows. If current window is on the edge of screen and direction
+    # will be to screen edge - window would shrink.
+    Key([mod, "control"], "h", lazy.layout.grow_left(), desc="Grow window to the left"),
+    Key([mod, "control"], "l", lazy.layout.grow_right(), desc="Grow window to the right"),
+    Key([mod, "control"], "j", lazy.layout.grow_down(), desc="Grow window down"),
+    Key([mod, "control"], "k", lazy.layout.grow_up(), desc="Grow window up"),
+    Key([mod], "n", lazy.layout.normalize(), desc="Reset all window sizes"),
+    # Toggle between split and unsplit sides of stack.
+    # Split = all windows displayed
+    # Unsplit = 1 window displayed, like Max layout, but still with
+    # multiple stack panes
+    Key(
+        [mod, "shift"],
+        "Return",
+        lazy.layout.toggle_split(),
+        desc="Toggle between split and unsplit sides of stack",
+    ),
+    Key([mod], "Return", lazy.spawn(terminal), desc="Launch terminal"),
+    # Toggle between different layouts as defined below
+    Key([mod], "Tab", lazy.next_layout(), desc="Toggle between layouts"),
+    Key([mod], "w", lazy.window.kill(), desc="Kill focused window"),
+    Key([mod, "control"], "r", lazy.reload_config(), desc="Reload the config"),
+    Key([mod], "r", lazy.spawn('/home/meet/.config/rofi/launcher.sh'), desc="Spawn a command using a prompt widget"),
+
+    # Custom
+    Key([mod, 'control'], 'b', lazy.hide_show_bar(), desc = "Hide bar"),
+    Key([mod, alt], 'r', lazy.restart(), desc = "restart qtile config"),
+    Key([mod, alt], 's', lazy.spawn('kill -9 -1'), desc = "basically logout/ Kill X Server"),
+    Key([mod], 't', lazy.spawn('pcmanfm'), desc = "Open File Manager"),
+    # Backlight
+    Key([], 'XF86MonBrightnessDown', lazy.spawn('brightnessctl set 5%-')),
+    Key([], 'XF86MonBrightnessUp', lazy.spawn('brightnessctl set +5%')),
+
+    # Volume
+    Key([ ], 'XF86AudioMute', lazy.spawn('pamixer --toggle-mute')),
+    Key([ ], 'XF86AudioLowerVolume', lazy.spawn('pamixer --decrease 5')),
+    Key([ ], 'XF86AudioRaiseVolume', lazy.spawn('pamixer --increase 5')),
+
+    # Player
+    Key([ ], 'XF86AudioPlay', lazy.spawn('playerctl play-pause')),
+    Key([ ], 'XF86AudioPrev', lazy.spawn('playerctl previous')),
+    Key([ ], 'XF86AudioNext', lazy.spawn('playerctl next')),
+
+    # Screenshot
+    Key([], "Print", lazy.spawn("flameshot gui")),
+
+    # Power Menu
+    Key([mod], 'q', lazy.spawn("/home/meet/.config/rofi/powermenu.sh")),
+]
+
+groups = []
+tag = ['', '', '', '', '', '', '',]
+
+for g in (
+  ('1', tag[0], '', [Match(wm_class = 'Alacritty')]),
+  ('2', tag[1], 'max', [Match(wm_class = 'firefox')]),
+  ('3', tag[2], '', [Match(wm_class = 'pcmanfm'), Match(wm_class = 'Thunar')]),
+  ('4', tag[3], '', [Match(wm_class = 'code')]),
+  ('5', tag[4], 'max', [Match(wm_class = 'steam'), Match(wm_class = 'lutris'), Match(wm_class = 'heroic')]),
+  ('6', tag[5], 'max', [Match(wm_class = 'vlc'), Match(wm_class = 'Audacious')]),
+  ('7', tag[6], '', [ ]),
+):
+  args = {'label': g[1], 'layout': g[2], 'matches': g[3]}
+  groups.append(Group(name = g[0], **args)) # type: ignore
+
+for i in groups:
+    keys.extend(
+        [
+            # mod1 + letter of group = switch to group
+            Key(
+                [mod],
+                i.name,
+                lazy.group[i.name].toscreen(),
+                desc="Switch to group {}".format(i.name),
+            ),
+            # mod1 + shift + letter of group = switch to & move focused window to group
+            Key(
+                [mod, "shift"],
+                i.name,
+                lazy.window.togroup(i.name, switch_group=True),
+                desc="Switch to & move focused window to group {}".format(i.name),
+            ),
+            # Or, use below if you prefer not to switch to that group.
+            # # mod1 + shift + letter of group = move focused window to group
+            # Key([mod, "shift"], i.name, lazy.window.togroup(i.name),
+            #     desc="move focused window to group {}".format(i.name)),
+        ]
+    )
+
+config_layouts = {
+  'single_border_width': 0,
+  'border_width': 0,
+  'single_margin': 10,
+  'margin': 10,
+  'border_normal': color[17],
+  'border_focus': color[5],
+}
+
+layouts = [
+    layout.MonadTall(
+        **config_layouts,
+        min_ratio = 0.30,
+        max_ratio = 0.70,
+        change_ratio = 0.02,
+    ),
+    layout.Max(**config_layouts),
+    # Try more layouts by unleashing below layouts.
+    # layout.Stack(num_stacks=2),
+    # layout.Bsp(),
+    # layout.Matrix(),
+    # layout.MonadTall(),
+    # layout.MonadWide(),
+    # layout.RatioTile(),
+    # layout.Tile(),
+    # layout.TreeTab(),
+    # layout.VerticalTile(),
+    # layout.Zoomy(),
+]
+
+widget_defaults = dict(
+    font="SauceCodePro Nerd Font",
+    fontsize=10,
+    padding=3,
+)
+extension_defaults = widget_defaults.copy()
+icon_font = "SauceCodePro Nerd Font"
+
+# Custom Widget configuration stuff
 
 def base(bg: str, fg: str) -> dict:
   return {
     'background': bg,
     'foreground': fg,
+  }
+
+def font(fontsize: int) -> dict:
+    return {
+      'font': icon_font,
+      'fontsize': fontsize,
+    }
+
+def icon(bg: str, fg: str) -> dict:
+  return {
+    **base(bg, fg),
+    **font(15),
   }
 
 def decoration(side: str = 'both') -> dict:
@@ -47,23 +239,52 @@ def decoration(side: str = 'both') -> dict:
     )
   ]}
 
-def font(fontsize: int) -> dict:
-  return {
-    'font': icon_font,
-    'fontsize': fontsize,
-  }
+def framed(self, border_width, border_color, pad_x, pad_y, highlight_color=None):
+  return TextFrame(
+    self, border_width, border_color, pad_x, pad_y, highlight_color=highlight_color
+  )
 
-def icon(bg: str, fg: str) -> dict:
-  return {
-    **base(bg, fg),
-    **font(15),
-  }
+class TextFrame(drawer.TextFrame):
+  def __init__(self, layout, border_width, border_color, pad_x, pad_y, highlight_color=None):
+    super().__init__(layout, border_width, border_color, pad_x, pad_y, highlight_color)
 
-def spacer(bg: str) -> object:
-  return widget.Spacer(background = bg)
+  def draw(self, x, y, rounded=True, fill=False, line=False, highlight=False, invert=False):
+    self.drawer.set_source_rgb(self.border_color)
+    opts = [
+      x,
+      y,
+      self.layout.width + self.pad_left + self.pad_right,
+      self.layout.height + self.pad_top + self.pad_bottom,
+      self.border_width,
+    ]
+    if line:
+      if highlight:
+        self.drawer.set_source_rgb(self.highlight_color)
+        self.drawer.fillrect(*opts)
+        self.drawer.set_source_rgb(self.border_color)
+
+      opts[1] = 0 if invert else self.height - self.border_width
+      opts[3] = self.border_width
+
+      self.drawer.fillrect(*opts)
+    elif fill:
+      if rounded:
+        self.drawer.rounded_fillrect(*opts)
+      else:
+        self.drawer.fillrect(*opts)
+    else:
+      if rounded:
+        self.drawer.rounded_rectangle(*opts)
+      else:
+        self.drawer.rectangle(*opts)
+    self.drawer.ctx.stroke()
+    self.layout.draw(x + self.pad_left, y + self.pad_top)
+
+  def draw_line(self, x, y, highlighted, inverted):
+    self.draw(x, y, line=True, highlight=highlighted, invert=inverted)
 
 
-class TextBox(base._TextBox):
+class TextBox(basewidget._TextBox):
   '''A flexible textbox that can be updated from bound keys, scripts, and qshell.'''
 
   def __init__(
@@ -75,7 +296,7 @@ class TextBox(base._TextBox):
     y = 0,
     **config,
   ):
-    base._TextBox.__init__(self, text = text, width = width, **config)
+    basewidget._TextBox.__init__(self, text = text, width = width, **config)
     self.add_offset = offset
     self.add_x = x
     self.add_y = y
@@ -153,67 +374,12 @@ class TextBox(base._TextBox):
         interval = self.scroll_interval
       self._scroll_timer = self.timeout_add(interval, self.do_scroll)
 
-
-
-
-from libqtile.widget import groupbox
-
-
-from libqtile import drawer
-
-def framed(self, border_width, border_color, pad_x, pad_y, highlight_color=None):
-  return TextFrame(
-    self, border_width, border_color, pad_x, pad_y, highlight_color=highlight_color
-  )
-
-class TextFrame(drawer.TextFrame):
-  def __init__(self, layout, border_width, border_color, pad_x, pad_y, highlight_color=None):
-    super().__init__(layout, border_width, border_color, pad_x, pad_y, highlight_color)
-
-  def draw(self, x, y, rounded=True, fill=False, line=False, highlight=False, invert=False):
-    self.drawer.set_source_rgb(self.border_color)
-    opts = [
-      x,
-      y,
-      self.layout.width + self.pad_left + self.pad_right,
-      self.layout.height + self.pad_top + self.pad_bottom,
-      self.border_width,
-    ]
-    if line:
-      if highlight:
-        self.drawer.set_source_rgb(self.highlight_color)
-        self.drawer.fillrect(*opts)
-        self.drawer.set_source_rgb(self.border_color)
-
-      opts[1] = 0 if invert else self.height - self.border_width
-      opts[3] = self.border_width
-
-      self.drawer.fillrect(*opts)
-    elif fill:
-      if rounded:
-        self.drawer.rounded_fillrect(*opts)
-      else:
-        self.drawer.fillrect(*opts)
-    else:
-      if rounded:
-        self.drawer.rounded_rectangle(*opts)
-      else:
-        self.drawer.rectangle(*opts)
-    self.drawer.ctx.stroke()
-    self.layout.draw(x + self.pad_left, y + self.pad_top)
-
-  def draw_line(self, x, y, highlighted, inverted):
-    self.draw(x, y, line=True, highlight=highlighted, invert=inverted)
-
-
-
-
 class _GroupBase(groupbox._GroupBase):
   def __init__(self, **config):
     super().__init__(**config)
 
   def _configure(self, qtile, bar):
-    base._Widget._configure(self, qtile, bar)
+    basewidget._Widget._configure(self, qtile, bar)
 
     if self.fontsize is None:
       calc = self.bar.height - self.margin_y * 2 - self.borderwidth * 2 - self.padding_y * 2
@@ -268,7 +434,7 @@ class _GroupBase(groupbox._GroupBase):
     framed = self.layout.framed(border_width, framecolor, 0, pad_y, highlight_color)
     y = self.margin_y
     if self.center_aligned:
-      for t in base.MarginMixin.defaults:
+      for t in basewidget.MarginMixin.defaults:
         if t[0] == "margin":
           y += (self.bar.height - framed.height) / 2 - t[1]
           break
@@ -382,34 +548,6 @@ class GroupBox(_GroupBase, groupbox.GroupBox):
       offset += bw + self.spacing
     self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.width)
 
-
-
-# Colors
-
-FILE: str = 'catppuccin'
-PATH = f'/home/meet/.config/qtile/utils/colors/{FILE}.json'
-
-with open(PATH) as file:
-  color = json.load(file)
-  file.close()
-
-# colors = {
-#     "bg" : "#1f1d2e",
-#     "fg" : "#e0def4",
-#     "fg_gutter" : "#ff0000",
-#     "active" : "#c77dff",
-#     "focused" : "#ade8f4",
-#     "other_screen_focused" : "#0077b6",
-#     "inactive" : "#6c757d",
-#     'low_bg' : "#212529",
-#     'low_fg' : "#e5383b",
-#     "border_focus" : "#c77dff",
-#     "border_normal" : "#6c757d"
-# }
-
-# Custome Widgets
-
-# Backlight
 class Command(object):
     """Run a command and capture it's output string, error string and exit status"""
 
@@ -427,6 +565,39 @@ class Command(object):
     @property
     def returncode(self):
         return self.failed
+
+class MyBluetooth():
+  def __init__(self) -> None:
+    self.check_power = 'bluetoothctl show | grep "Powered: yes" | wc -l'
+    self.check_connection = 'bluetoothctl info | grep "Connected: yes" | wc -l'
+    self.power_command = None
+  
+  def _check_status(self) -> None:
+    self.power = int(Command(self.check_power).run().output)
+    if self.power == 1:
+      self.connected = int(Command(self.check_connection).run().output)
+      if self.connected == 1:
+        self.icon = ' '
+      else:
+        self.icon = ' '
+    else:
+      self.icon = ' '
+
+  def update(self) -> str:
+    self._check_status()
+    result = subprocess.check_output(["echo", self.icon])
+    return result.decode("utf-8").replace('\n', '')
+  
+  def _changePower(self) -> None:
+    if self.power == 1 : cmd = 'bluetoothctl power off'
+    else : cmd = 'bluetoothctl power on'
+    subprocess.run(cmd, shell=True)
+  
+  def _connect(self) -> None:
+    if self.power == 1:
+      if self.connected == 1 : cmd = 'bluetoothctl disconnect 34:28:40:05:86:D9'
+      else : cmd = 'bluetoothctl connect 34:28:40:05:86:D9'
+      subprocess.run(cmd, shell = True)
 
 class MyBattery:
     def __init__(self) -> None:
@@ -497,236 +668,31 @@ class MyBattery:
         result = subprocess.check_output(["echo", self.char])
         return result.decode("utf-8").replace('\n', '')
 
-class MyBluetooth():
-  def __init__(self) -> None:
-    self.check_power = 'bluetoothctl show | grep "Powered: yes" | wc -l'
-    self.check_connection = 'bluetoothctl info | grep "Connected: yes" | wc -l'
-    self.power_command = None
-  
-  def _check_status(self) -> None:
-    self.power = int(Command(self.check_power).run().output)
-    if self.power == 1:
-      self.connected = int(Command(self.check_connection).run().output)
-      if self.connected == 1:
-        self.icon = ''
-      else:
-        self.icon = ''
-    else:
-      self.icon = ''
-
-  def update(self) -> str:
-    self._check_status()
-    result = subprocess.check_output(["echo", self.icon])
-    return result.decode("utf-8").replace('\n', '')
-  
-  def _changePower(self) -> None:
-    if self.power == 1 : cmd = 'bluetoothctl power off'
-    else : cmd = 'bluetoothctl power on'
-    subprocess.run(cmd, shell=True)
-  
-  def _connect(self) -> None:
-    if self.power == 1:
-      if self.connected == 1 : cmd = 'bluetoothctl disconnect 34:28:40:05:86:D9'
-      else : cmd = 'bluetoothctl connect 34:28:40:05:86:D9'
-      subprocess.run(cmd, shell = True)
 
 battery = MyBattery()
 bluetooth = MyBluetooth()
 
-# Some constant values
-mod = "mod4"
-terminal = guess_terminal()
-home = os.path.expanduser('~')
-launcher_location = "/home/meet/.config/rofi/launcher.sh"
-
-
-keys = [
-    # A list of available commands that can be bound to keys can be found
-    # at https://docs.qtile.org/en/latest/manual/config/lazy.html
-    # Switch between windows
-    Key([mod], "h", lazy.layout.left(), desc="Move focus to left"),
-    Key([mod], "l", lazy.layout.right(), desc="Move focus to right"),
-    Key([mod], "j", lazy.layout.down(), desc="Move focus down"),
-    Key([mod], "k", lazy.layout.up(), desc="Move focus up"),
-    Key([mod], "space", lazy.layout.next(), desc="Move window focus to other window"),
-    # Move windows between left/right columns or move up/down in current stack.
-    # Moving out of range in Columns layout will create new column.
-    Key([mod, "shift"], "h", lazy.layout.shuffle_left(), desc="Move window to the left"),
-    Key([mod, "shift"], "l", lazy.layout.shuffle_right(), desc="Move window to the right"),
-    Key([mod, "shift"], "j", lazy.layout.shuffle_down(), desc="Move window down"),
-    Key([mod, "shift"], "k", lazy.layout.shuffle_up(), desc="Move window up"),
-    # Grow windows. If current window is on the edge of screen and direction
-    # will be to screen edge - window would shrink.
-    Key([mod, "control"], "h", lazy.layout.grow_left(), desc="Grow window to the left"),
-    Key([mod, "control"], "l", lazy.layout.grow_right(), desc="Grow window to the right"),
-    Key([mod, "control"], "j", lazy.layout.grow_down(), desc="Grow window down"),
-    Key([mod, "control"], "k", lazy.layout.grow_up(), desc="Grow window up"),
-    Key([mod], "n", lazy.layout.normalize(), desc="Reset all window sizes"),
-    # Toggle between split and unsplit sides of stack.
-    # Split = all windows displayed
-    # Unsplit = 1 window displayed, like Max layout, but still with
-    # multiple stack panes
-    Key(
-        [mod, "shift"],
-        "Return",
-        lazy.layout.toggle_split(),
-        desc="Toggle between split and unsplit sides of stack",
-    ),
-    Key([mod], "Return", lazy.spawn(terminal), desc="Launch terminal"),
-    # Toggle between different layouts as defined below
-    Key([mod], "Tab", lazy.next_layout(), desc="Toggle between layouts"),
-    Key([mod], "w", lazy.window.kill(), desc="Kill focused window"),
-    Key([mod, "control"], "r", lazy.reload_config(), desc="Reload the config"),
-    Key([mod, "control"], "q", lazy.shutdown(), desc="Shutdown Qtile"),
-    # Key([mod], "r", lazy.spawn(), desc="Spawn a command using a prompt widget"),
-
-    # Custom
-    # Volume
-    Key([], "XF86AudioMute", lazy.spawn("pactl set-sink-mute @DEFAULT_SINK@ toggle")),
-    Key([], "XF86AudioLowerVolume", lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ -2%")),
-    Key([], "XF86AudioRaiseVolume", lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ +2%")),
-
-    Key([], "XF86MonBrightnessUp", lazy.spawn("brightnessctl set +10%")),
-    Key([], "XF86MonBrightnessDown", lazy.spawn("brightnessctl set 10%-")),
-
-    # Screenshot
-    Key([], "Print", lazy.spawn("xfce4-screenshooter -r")),
-    Key([], "Print", lazy.spawn("flameshot gui")),
-
-    # Rofi Menu
-    Key([mod], "r", lazy.spawn(f"bash {launcher_location}"), desc="Rofi Menu"),
-    # Key([], "XF86TouckpadOn", lazy.spawn("pcmanfm"))
-
-]
-
-workspaces = [
-    {"name": "", "key": "1", "matches": [Match(wm_class = 'Alacritty')]},
-    {"name": "", "key": "2", "matches": [Match(wm_class = 'firefox')]},
-    {"name": "", "key": "3", "matches": [Match(wm_class = 'pcmanfm')]},
-    {"name": "", "key": "4", "matches": [Match(wm_class = 'Steam')]},
-    {"name": "", "key": "5", "matches": [Match(wm_class = 'vlc'), Match(wm_class = 'Audacious')]},
-    {"name": "", "key": "6", "matches": [Match(wm_class = 'code')]},
-    {"name": "", "key": "7", "matches": []},
-]
-
-groups = []
-for workspace in workspaces:
-    matches = workspace["matches"] if "matches" in workspace else None
-    groups.append(Group(workspace["name"], matches=matches, layout="monadtall"))
-    keys.append(Key([mod], workspace["key"], lazy.group[workspace["name"]].toscreen()))
-    keys.append(Key([mod, "shift"], workspace["key"], lazy.window.togroup(workspace["name"])))
-
-config_layout = {
-  'single_border_width': 0,
-  'border_width': 0,
-  'single_margin': 10,
-  'margin': 10,
-  'border_normal': color[17],
-  'border_focus': color[5],
-}
-
-layouts = [
-    layout.MonadTall(
-        **config_layout,
-        min_ratio = 0.30,
-        max_ratio = 0.70,
-        change_ratio = 0.02,
-    ),
-
-    layout.Max(**config_layout),
-    # Try more layouts by unleashing below layouts.
-    # layout.Stack(num_stacks=2),
-    # layout.Bsp(),
-    # layout.Matrix(),
-    # layout.MonadTall(),
-    # layout.MonadWide(),
-    # layout.RatioTile(),
-    # layout.Tile(),
-    # layout.TreeTab(),
-    # layout.VerticalTile(),
-    # layout.Zoomy(),
-]
-
-floating_layout = layout.Floating(
-  fullscreen_border_width = 0,
-  border_width = 0,
-  border_normal = color[17],
-  border_focus = color[7],
-
-  float_rules = [
-    *layout.Floating.default_float_rules,
-    Match(wm_class = [
-      'confirmreset',
-      'gnome-screenshot',
-      'lxappearance',
-      'makebranch',
-      'maketag',
-      'ssh-askpass',
-      'thunar',
-      'Xephyr',
-      'xfce4-about',
-    ]), # type: ignore
-
-    Match(title = [
-      'branchdialog',
-      'File Operation Progress',
-      'minecraft-launcher',
-      'Open File',
-      'pinentry',
-    ]), # type: ignore
-  ],
-)
-
-# Widgets
-
-
-
-
-def sep(fg: str, offset = 0, padding = 8) -> TextBox:
-  return TextBox(
-    **icon(None, fg),
-    offset = offset,
-    padding = padding,
-    text = '',
-  )
-
-def powerline(bg: str, color: str) -> TextBox:
-  return TextBox(
-    **base(bg, color),
-    **font(31),
-    offset = -1,
-    padding = -4,
-    text = '',
-    y = -1,
-  )
+# Custom Widgets
 
 def logo(bg: str, fg: str) -> TextBox:
   return modify(
     TextBox,
     **decoration(),
     **icon(bg, fg),
-    mouse_callbacks = { 'Button1': lazy.restart() },
-    # mouse_callbacks = { 'Button1': lambda: qtile.cmd_spawn(f"bash {launcher_location}") },
+    # mouse_callbacks = { 'Button1': lazy.restart() },
+    mouse_callbacks = { 'Button1': lazy.spawn("/home/meet/.config/rofi/launcher.sh") },
     offset = 4,
     padding = 17,
     text = '',
   )
 
-def groups(bg: str) -> GroupBox:
-  return GroupBox(
-    **font(15),
-    background = bg,
-    borderwidth = 1,
-    colors = [
-      color[6], color[5], color[3],
-      color[1], color[4], color[2],
-    ],
-    highlight_color = color[16],
-    highlight_method = 'line',
-    inactive = color[8],
-    invert = True,
-    padding = 7,
-    rainbow = True,
+def sep(fg: str, offset = 0, padding = 8) -> TextBox:
+  return TextBox(
+    foreground = fg,
+    offset = offset,
+    padding = padding,
+    text = '',
+    fontsize = 16,
   )
 
 def volume(bg: str, fg: str) -> list:
@@ -741,10 +707,12 @@ def volume(bg: str, fg: str) -> list:
     widget.PulseVolume(
       **base(bg, fg),
       **decoration('right'),
-      update_interval = 0.1,
+      update_interval = 0.5,
       mouse_callbacks = {
-	      'Button1' : lambda : qtile.cmd_spawn("pavucontrol")
-	      }
+	      'Button1' : lazy.spawn("pavucontrol")
+	      },
+      font = "Roboto Medium",
+      fontsize = 12,
     ),
   ]
 
@@ -753,6 +721,8 @@ def window_name(bg: str, fg: str) -> object:
     **base(bg, fg),
     format = '{name}',
     max_chars = 60,
+    font = "Roboto Medium",
+    fontsize = 12,
     width = bar.CALCULATED,
   )
 
@@ -765,29 +735,32 @@ def wifi(bg: str, fg: str) -> list:
     padding_y = 4,
     padding_x = 8,
     mouse_callbacks = {
-	    'Button1' : lambda : qtile.cmd_spawn('nm-connection-editor')
+      'Button1' : lazy.spawn("/home/meet/.config/rofi/launcher.sh"),
     }
   )]
 
+def powerline(bg: str, color: str) -> TextBox:
+  return TextBox(
+    **base(bg, color),
+    **font(31),
+    offset = -1,
+    padding = -4,
+    text = '',
+    y = -1,
+  )
+
 def blue(bg: str, fg: str) -> list:
   return [
-    TextBox(
-      **icon(bg, fg),
-      offset = -2,
-      # text = '',
-      text = '',
-      x = -6,
-    ),
     widget.GenPollText(
       **base(bg , fg),
       func = bluetooth.update,
-      update_interval = 0.2,
+      update_interval = 2,
       fontsize = 14,
       mouse_callbacks = {
         'Button1' : lazy.spawn('blueberry'),
         'Button2' : bluetooth._changePower,
         'Button3' : bluetooth._connect
-      }
+      },
     ),
   ]
 
@@ -804,14 +777,9 @@ def batt(bg: str, fg: str) -> list:
       **base(bg , fg),
       **decoration('right'),
       func = battery.draw,
-      update_interval = 0.2,
+      update_interval = 10,
     ),
   ]
-
-# def tray(bg: str, fg: str) -> list:
-#   return [
-    
-#   ]
 
 def clock(bg: str, fg: str) -> list:
   return [
@@ -819,8 +787,8 @@ def clock(bg: str, fg: str) -> list:
       TextBox,
       **decoration('left'),
       **icon(bg, fg),
-      offset = 2,
-      text = '',
+      offset = -2,
+      text = ' ',
       x = 4,
     ),
 
@@ -829,44 +797,59 @@ def clock(bg: str, fg: str) -> list:
       **decoration('right'),
       format = '%A - %I:%M %p ',
       padding = 6,
+      font = "Roboto Medium",
+      fontsize = 12,
     ),
   ]
 
+
+# Screen
 
 
 screens = [
     Screen(
         top=bar.Bar(
             [
-                widget.Spacer(length = 4),
+                # widget.Spacer(),
                 logo(color[4], color[16]),
                 sep(color[8], offset = -8),
-                groups(None),
+                GroupBox(
+                  **font(15),
+                  background = None,
+                  borderwidth = 1,
+                  colors = [
+                    color[6], color[5], color[3],
+                    color[1], color[4], color[2],
+                  ],
+                  highlight_color = color[16],
+                  highlight_method = 'line',
+                  inactive = color[8],
+                  invert = True,
+                  padding = 7,
+                  rainbow = True,
+                ),
                 sep(color[8], offset = 4, padding = 4),
                 *volume(color[5], color[16]),
-                #  powerline(color[5], color[1]),
-                #  *updates(color[1], color[16]),
-
                 widget.Spacer(),
                 window_name(None, color[17]),
                 widget.Spacer(),
-
                 *wifi(color[2], color[16]),
                 powerline(color[2], color[3]),
                 *blue(color[3], color[16]),
                 powerline(color[3], color[6]),
                 *batt(color[6], color[16]),
-                # *tray(color[6], color[16]),
                 sep(color[8]),
                 *clock(color[5], color[16]),
-                widget.Spacer(length = 4),
+                # widget.Spacer(),
             ],
             size = 18,
-            opacity = 0.7,
+            margin = [6, 6, -6, 6],
             background = color[16],
-            border_color = color[16],
             border_width = 4,
-            margin = [10, 10, 10, 10],
+            border_color = color[16],
+            opacity = 0.8,
+            # border_width=[2, 0, 2, 0],  # Draw top and bottom borders
+            # border_color=["ff00ff", "000000", "ff00ff", "000000"]  # Borders are magenta
         ),
     ),
 ]
@@ -876,6 +859,7 @@ mouse = [
     Drag([mod], "Button1", lazy.window.set_position_floating(), start=lazy.window.get_position()),
     Drag([mod], "Button3", lazy.window.set_size_floating(), start=lazy.window.get_size()),
     Click([mod], "Button2", lazy.window.bring_to_front()),
+    # Click([], "Button3", lazy.spawn("jgmenu_run")),
 ]
 
 dgroups_key_binder = None
@@ -883,29 +867,37 @@ dgroups_app_rules = []  # type: list
 follow_mouse_focus = True
 bring_front_click = False
 cursor_warp = False
+
 floating_layout = layout.Floating(
-    float_rules=[
-        # Run the utility of `xprop` to see the wm class and name of an X client. Add floating windows here.
+    fullscreen_border_width = 0,
+    border_width = 0,
+    border_normal = color[17],
+    border_focus = color[7],
+
+    float_rules = [
         *layout.Floating.default_float_rules,
-        Match(wm_class="confirmreset"),  # gitk
-        Match(wm_class="makebranch"),  # gitk
-        Match(wm_class="maketag"),  # gitk
-        Match(wm_class="ssh-askpass"),  # ssh-askpass
-        Match(title="branchdialog"),  # gitk
-        Match(title="pinentry"),  # GPG key password entry
-        
-        # Custom
-        Match(wm_class = "Blueberry"), # Bluetooth
-        Match(wm_class = "Nitrogen"), # Wallpaper manager
-#        Match(wm_class = "Steam"), # Steam
-        Match(wm_class = "task manager"), # Task Manager
-        Match(wm_class = "Nm-connection-editor"), # Network editor
-        Match(wm_class = "Pavucontrol"), # Volume Manager
-        Match(wm_class = "Audacious"), # Music Player
-        Match(wm_class = "Transmission-gtk"), # Torrent downloader
-        Match(wm_class = "Lxappearance") # Theme customizer
-        # Match(wm_class = "TelegramDesktop") # Telegram Messenger
-    ]
+        Match(wm_class = [
+            'confirmreset',
+            'gnome-screenshot',
+            'lxappearance',
+            'makebranch',
+            'maketag',
+            'ssh-askpass',
+            'blueberry.py',
+            'pavucontrol',
+            'nm-connection-editor',
+            'Xephyr',
+            'xfce4-about',
+        ]), # type: ignore
+
+        Match(title = [
+            'branchdialog',
+            'File Operation Progress',
+            'minecraft-launcher',
+            'Open File',
+            'pinentry',
+        ]), # type: ignore
+    ],
 )
 auto_fullscreen = True
 focus_on_window_activation = "smart"
@@ -914,7 +906,6 @@ reconfigure_screens = True
 # If things like steam games want to auto-minimize themselves when losing
 # focus, should we respect this or not?
 auto_minimize = True
-
 
 # When using the Wayland backend, this can be used to configure input devices.
 wl_input_rules = None
@@ -929,6 +920,7 @@ wl_input_rules = None
 # java that happens to be on java's whitelist.
 wmname = "LG3D"
 
+# Startup
 @hook.subscribe.startup_once
 def autostart():
     home = os.path.expanduser('~/.config/autostart.sh')

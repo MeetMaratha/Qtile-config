@@ -1,0 +1,91 @@
+
+(nm-applet:697): libnotify-WARNING **: 15:29:34.048: Failed to connect to proxy
+
+(nm-applet:697): nm-applet-WARNING **: 15:29:34.056: Failed to show notification: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications was not provided by any .service files
+
+(nitrogen:695): Gtk-WARNING **: 15:29:35.767: Unable to locate theme engine in module_path: "adwaita",
+
+(nitrogen:695): Gtk-WARNING **: 15:29:35.860: Unable to locate theme engine in module_path: "murrine",
+
+(nitrogen:695): Gtk-WARNING **: 15:29:35.860: Unable to locate theme engine in module_path: "murrine",
+
+(nitrogen:695): Gtk-WARNING **: 15:29:35.860: Unable to locate theme engine in module_path: "murrine",
+
+(nitrogen:695): Gtk-WARNING **: 15:29:36.598: Unable to locate theme engine in module_path: "adwaita",
+
+(nitrogen:695): Gtk-WARNING **: 15:29:36.602: Unable to locate theme engine in module_path: "murrine",
+
+(nitrogen:695): Gtk-WARNING **: 15:29:36.602: Unable to locate theme engine in module_path: "murrine",
+
+(nitrogen:695): Gtk-WARNING **: 15:29:36.602: Unable to locate theme engine in module_path: "murrine",
+Exception in callback Qtile.call_later.<locals>.f() at /usr/lib/python3.10/site-packages/libqtile/core/manager.py:862
+handle: <TimerHandle when=646.3221271650001 Qtile.call_later.<locals>.f() at /usr/lib/python3.10/site-packages/libqtile/core/manager.py:862>
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/asyncio/events.py", line 80, in _run
+    self._context.run(self._callback, *self._args)
+  File "/usr/lib/python3.10/site-packages/libqtile/core/manager.py", line 864, in f
+    self.core.flush()
+  File "/usr/lib/python3.10/site-packages/libqtile/backend/x11/core.py", line 797, in flush
+    self.conn.flush()
+  File "/usr/lib/python3.10/site-packages/libqtile/backend/x11/xcbq.py", line 645, in flush
+    return self.conn.flush()
+  File "/usr/lib/python3.10/site-packages/xcffib/__init__.py", line 569, in wrapper
+    self.invalid()
+  File "/usr/lib/python3.10/site-packages/xcffib/__init__.py", line 559, in invalid
+    raise ConnectionException(err)
+xcffib.ConnectionException: xcb connection errors because of socket, pipe and other stream errors.
+Exception in callback Qtile.call_later.<locals>.f() at /usr/lib/python3.10/site-packages/libqtile/core/manager.py:862
+handle: <TimerHandle when=646.3348995990001 Qtile.call_later.<locals>.f() at /usr/lib/python3.10/site-packages/libqtile/core/manager.py:862>
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/asyncio/events.py", line 80, in _run
+    self._context.run(self._callback, *self._args)
+  File "/usr/lib/python3.10/site-packages/libqtile/core/manager.py", line 864, in f
+    self.core.flush()
+  File "/usr/lib/python3.10/site-packages/libqtile/backend/x11/core.py", line 797, in flush
+    self.conn.flush()
+  File "/usr/lib/python3.10/site-packages/libqtile/backend/x11/xcbq.py", line 645, in flush
+    return self.conn.flush()
+  File "/usr/lib/python3.10/site-packages/xcffib/__init__.py", line 569, in wrapper
+    self.invalid()
+  File "/usr/lib/python3.10/site-packages/xcffib/__init__.py", line 559, in invalid
+    raise ConnectionException(err)
+xcffib.ConnectionException: xcb connection errors because of socket, pipe and other stream errors.
+Exception in callback Qtile.call_later.<locals>.f() at /usr/lib/python3.10/site-packages/libqtile/core/manager.py:862
+handle: <TimerHandle when=646.766401132 Qtile.call_later.<locals>.f() at /usr/lib/python3.10/site-packages/libqtile/core/manager.py:862>
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/usr/lib/python3.10/asyncio/base_events.py", line 646, in run_until_complete
+    return future.result()
+  File "/usr/lib/python3.10/site-packages/libqtile/core/manager.py", line 220, in async_loop
+    self.finalize()
+  File "/usr/lib/python3.10/site-packages/libqtile/core/manager.py", line 300, in finalize
+    self.core.finalize()
+  File "/usr/lib/python3.10/site-packages/libqtile/backend/x11/core.py", line 165, in finalize
+    self.conn.conn.core.DeletePropertyChecked(
+  File "/usr/lib/python3.10/site-packages/xcffib/xproto.py", line 2716, in DeleteProperty
+    return self.send_request(19, buf, is_checked=is_checked)
+  File "/usr/lib/python3.10/site-packages/xcffib/__init__.py", line 391, in send_request
+    seq = self.conn.send_request(flags, xcb_parts + 2, xcb_req)
+  File "/usr/lib/python3.10/site-packages/xcffib/__init__.py", line 569, in wrapper
+    self.invalid()
+  File "/usr/lib/python3.10/site-packages/xcffib/__init__.py", line 559, in invalid
+    raise ConnectionException(err)
+xcffib.ConnectionException: xcb connection errors because of socket, pipe and other stream errors.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/asyncio/events.py", line 80, in _run
+    self._context.run(self._callback, *self._args)
+  File "/usr/lib/python3.10/site-packages/libqtile/core/manager.py", line 864, in f
+    self.core.flush()
+  File "/usr/lib/python3.10/site-packages/libqtile/backend/x11/core.py", line 797, in flush
+    self.conn.flush()
+  File "/usr/lib/python3.10/site-packages/libqtile/backend/x11/xcbq.py", line 645, in flush
+    return self.conn.flush()
+  File "/usr/lib/python3.10/site-packages/xcffib/__init__.py", line 569, in wrapper
+    self.invalid()
+  File "/usr/lib/python3.10/site-packages/xcffib/__init__.py", line 559, in invalid
+    raise ConnectionException(err)
+xcffib.ConnectionException: xcb connection errors because of socket, pipe and other stream errors.

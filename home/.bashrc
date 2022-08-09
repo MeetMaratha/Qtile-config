@@ -1,47 +1,17 @@
-# .bashrc
+#
+# ~/.bashrc
+#
 
-# Custom alias
-alias update='sudo dnf update'
-alias ins='sudo dnf install'
-alias search='sudo dnf search'
-alias c='rsync -avhP'
+# If not running interactively, don't do anything
+[[ $- != *i* ]] && return
 
-# Source global definitions
-if [ -f /etc/bashrc ]; then
-	. /etc/bashrc
-fi
+alias ls='ls --color=auto'
+PS1='[\u@\h \W]\$ '
 
-# User specific environment
-if ! [[ "$PATH" =~ "$HOME/.local/bin:$HOME/bin:" ]]
-then
-    PATH="$HOME/.local/bin:$HOME/bin:$PATH"
-fi
-export PATH
-
-# Uncomment the following line if you don't like systemctl's auto-paging feature:
-# export SYSTEMD_PAGER=
-
-# User specific aliases and functions
-if [ -d ~/.bashrc.d ]; then
-	for rc in ~/.bashrc.d/*; do
-		if [ -f "$rc" ]; then
-			. "$rc"
-		fi
-	done
-fi
-
-unset rc
-
-
-
-##-----------------------------------------------------
-## synth-shell-prompt.sh
-if [ -f /home/meet/.config/synth-shell/synth-shell-prompt.sh ] && [ -n "$( echo $- | grep i )" ]; then
-	source /home/meet/.config/synth-shell/synth-shell-prompt.sh
-fi
-
-##-----------------------------------------------------
-## better-ls
-if [ -f /home/meet/.config/synth-shell/better-ls.sh ] && [ -n "$( echo $- | grep i )" ]; then
-	source /home/meet/.config/synth-shell/better-ls.sh
-fi
+# Custom theme ---------------------------
+# Synth Shell
+#if [ -f /home/meet/.config/synth-shell/synth-shell-prompt.sh ] && [ -n "$(echo $- | grep i)" ]; then
+#	source /home/meet/.config/synth-shell/synth-shell-prompt.sh
+#fi
+#eval "$(starship init bash)"
+exec fish
